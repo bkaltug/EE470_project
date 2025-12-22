@@ -1,105 +1,66 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'tflite_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const MaterialApp(home: TrafficSignApp(), debugShowCheckedModeBanner: false,));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+class TrafficSignApp extends StatefulWidget {
+  const TrafficSignApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Traffic Sign Recognizer',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const TrafficSignRecognizer(),
-    );
-  }
+  State<TrafficSignApp> createState() => _TrafficSignAppState();
 }
 
-class TrafficSignRecognizer extends StatefulWidget {
-  const TrafficSignRecognizer({Key? key}) : super(key: key);
+class _TrafficSignAppState extends State<TrafficSignApp> {
+  File? _image;
+  String _result = "Select an image to analyze";
+  final picker = ImagePicker();
 
-  @override
-  State<TrafficSignRecognizer> createState() => _TrafficSignRecognizerState();
-}
+  // REPLACE THIS WITH YOUR COMPUTER'S IP ADDRESS
+  // If using Android Emulator, use '10.0.2.2'
+  // If using a physical phone, use '192.168.1.XX' (check Step 2) 
+  final String serverUrl = 'http://10.8.58.14:5000/predict';
 
-class _TrafficSignRecognizerState extends State<TrafficSignRecognizer> {
-  File? _selectedImage;
-  String? _prediction;
-  double? _confidence;
-  bool _isLoading = false;
-  late TFLiteService _tfLiteService;
+  Future getImage(ImageSource source) async {
+    final pickedFile = await picker.pickImage(source: source);
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeTFLite();
-  }
-
-  void _initializeTFLite() async {
-    _tfLiteService = TFLiteService();
-    await _tfLiteService.initialize();
-  }
-
-  @override
-  void dispose() {
-    _tfLiteService.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(source: source);
-
-      if (pickedFile != null) {
-        setState(() {
-          _selectedImage = File(pickedFile.path);
-          _prediction = null;
-          _confidence = null;
-        });
-
-        // Process the image
-        await _classifyImage();
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+        _result = "Analyzing...";
+      });
+      uploadImage(_image!);
     }
   }
 
-  Future<void> _classifyImage() async {
-    if (_selectedImage == null) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> uploadImage(File imageFile) async {
     try {
-      final result = await _tfLiteService.classifyImage(_selectedImage!);
-      setState(() {
-        _prediction = result['label'];
-        _confidence = result['confidence'];
-      });
+      var request = http.MultipartRequest('POST', Uri.parse(serverUrl));
+      
+      // Add the image file to the request
+      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+
+      // Send request
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        var jsonResponse = json.decode(response.body);
+        setState(() {
+          _result = "Sign: ${jsonResponse['label']}\nConf: ${jsonResponse['confidence']}";
+        });
+      } else {
+        setState(() {
+          _result = "Server Error: ${response.statusCode}";
+        });
+      }
     } catch (e) {
-      print('Error classifying image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error classifying image: $e'),
-          duration: const Duration(seconds: 5),
-        ),
-      );
-    } finally {
       setState(() {
-        _isLoading = false;
+        _result = "Connection Error. Check IP & Server.\nError: $e";
       });
     }
   }
@@ -107,124 +68,34 @@ class _TrafficSignRecognizerState extends State<TrafficSignRecognizer> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Traffic Sign Recognizer'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Image Display Area
-              Container(
-                height: 300,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey, width: 2),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey[200],
+      appBar: AppBar(title: const Text('Traffic Sign Recognizer')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _image == null
+                ? const Text('No image selected.')
+                : Image.file(_image!, height: 300),
+            const SizedBox(height: 20),
+            Text(_result, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => getImage(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Camera'),
                 ),
-                child: _selectedImage == null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.image_outlined,
-                                size: 64, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No image selected',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 16,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.file(
-                          _selectedImage!,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-              ),
-              const SizedBox(height: 24),
-
-              // Buttons Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () => _pickImage(ImageSource.camera),
-                    icon: const Icon(Icons.camera_alt),
-                    label: const Text('Take Photo'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () => _pickImage(ImageSource.gallery),
-                    icon: const Icon(Icons.photo_library),
-                    label: const Text('Pick from Gallery'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // Results Section
-              if (_isLoading)
-                const Center(
-                  child: CircularProgressIndicator(),
-                )
-              else if (_prediction != null)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    border: Border.all(color: Colors.green, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Recognized Sign',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _prediction!,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          color: Colors.green[700],
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Confidence: ${(_confidence! * 100).toStringAsFixed(2)}%',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  onPressed: () => getImage(ImageSource.gallery),
+                  icon: const Icon(Icons.photo),
+                  label: const Text('Gallery'),
                 ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
     );
