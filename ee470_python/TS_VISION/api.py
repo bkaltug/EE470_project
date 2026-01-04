@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
-from PIL import Image
+from PIL import Image, ExifTags
 import io
 from flask import Flask, request, jsonify
 from data_nn import TrafficSignClassifier, device
@@ -28,6 +28,51 @@ test_transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
+def fix_image_orientation(image):
+    """
+    Fix image orientation based on EXIF data.
+    Camera photos often have rotation metadata that needs to be applied.
+    """
+    try:
+        # Get EXIF data
+        exif = image._getexif()
+        if exif is None:
+            return image
+        
+        # Find the orientation tag
+        orientation_key = None
+        for key, value in ExifTags.TAGS.items():
+            if value == 'Orientation':
+                orientation_key = key
+                break
+        
+        if orientation_key is None or orientation_key not in exif:
+            return image
+        
+        orientation = exif[orientation_key]
+        
+        # Apply rotation based on orientation value
+        if orientation == 2:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT)
+        elif orientation == 3:
+            image = image.rotate(180, expand=True)
+        elif orientation == 4:
+            image = image.transpose(Image.FLIP_TOP_BOTTOM)
+        elif orientation == 5:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
+        elif orientation == 6:
+            image = image.rotate(270, expand=True)
+        elif orientation == 7:
+            image = image.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
+        elif orientation == 8:
+            image = image.rotate(90, expand=True)
+            
+    except (AttributeError, KeyError, IndexError, TypeError):
+        # If anything goes wrong, just return the original image
+        pass
+    
+    return image
+
 # --- 2. DEFINE THE ENDPOINT ---
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -42,7 +87,13 @@ def predict():
     try:
         # Read image file from memory (don't need to save to disk)
         image_bytes = file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Fix orientation for camera photos (EXIF rotation)
+        image = fix_image_orientation(image)
+        
+        # Convert to RGB after fixing orientation
+        image = image.convert('RGB')
         
         # Transform image
         image_tensor = test_transform(image).unsqueeze(0).to(device)
