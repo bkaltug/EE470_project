@@ -119,7 +119,7 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'Traffic Sign AI',
+          'TS Vision',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: colorScheme.onSurface,

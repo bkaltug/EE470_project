@@ -7,7 +7,7 @@
     
     <!-- Allow cleartext traffic for local development server -->
     <application
-        android:label="Traffic Sign AI"
+        android:label="TS Vision"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

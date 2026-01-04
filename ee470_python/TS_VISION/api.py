@@ -8,7 +8,6 @@ from data_nn import TrafficSignClassifier, device
 
 app = Flask(__name__)
 
-# --- 1. SETUP MODEL (Load once when server starts) ---
 MODEL_PATH = './models/simple_cnn_traffic_sign.pth'
 NUM_CLASSES = 29 
 
@@ -22,7 +21,7 @@ model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 model.to(device)
 model.eval()
 
-# Define Transform (Same as training)
+# Define Transform 
 test_transform = transforms.Compose([
     transforms.Resize((30, 30)),
     transforms.ToTensor(),
@@ -73,7 +72,7 @@ def fix_image_orientation(image):
     
     return image
 
-# --- 2. DEFINE THE ENDPOINT ---
+
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
@@ -116,7 +115,5 @@ def predict():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# --- 3. RUN SERVER ---
 if __name__ == '__main__':
-    # host='0.0.0.0' allows external devices (like your phone) to connect
     app.run(host='0.0.0.0', port=5000, debug=True)

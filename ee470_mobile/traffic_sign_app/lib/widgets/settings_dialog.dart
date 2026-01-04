@@ -108,7 +108,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
             TextField(
               controller: _urlController,
               decoration: InputDecoration(
-                hintText: 'http://192.168.1.100:5000',
+                hintText: 'http://192.168.1.96:5000',
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 border: OutlineInputBorder(

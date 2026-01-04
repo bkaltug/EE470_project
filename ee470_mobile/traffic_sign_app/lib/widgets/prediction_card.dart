@@ -146,13 +146,6 @@ class PredictionCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Class ID
-          Text(
-            'Class ID: ${result.classId}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurface.withOpacity(0.5),
-            ),
-          ),
         ],
       ),
     );

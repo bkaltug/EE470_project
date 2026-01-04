@@ -23,10 +23,8 @@ class PredictionResult {
 }
 
 class ApiService {
-  // Change this to your computer's IP address when running the Flask server
-  // Use 10.0.2.2 for Android emulator (localhost equivalent)
-  // Use your actual local IP (e.g., 192.168.x.x) for physical devices
-  static const String baseUrl = 'http://192.168.1.100:5000';
+
+  static const String baseUrl = 'http://192.168.1.96:5000';
 
   /// Updates the base URL for the API
   static String _currentBaseUrl = baseUrl;
