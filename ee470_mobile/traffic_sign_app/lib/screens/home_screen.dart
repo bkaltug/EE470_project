@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/tflite_classifier.dart';
 import '../services/api_service.dart';
+import '../services/app_settings.dart';
 import '../widgets/gradient_background.dart';
 import '../widgets/image_picker_button.dart';
 import '../widgets/prediction_card.dart';
@@ -19,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen>
   File? _selectedImage;
   PredictionResult? _predictionResult;
   bool _isLoading = false;
+  bool _isModelLoading = true;
   String? _errorMessage;
 
   late AnimationController _animationController;
@@ -26,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<Offset> _slideAnimation;
 
   final ImagePicker _imagePicker = ImagePicker();
+  final TFLiteClassifier _classifier = TFLiteClassifier();
+  final AppSettings _settings = AppSettings();
 
   @override
   void initState() {
@@ -41,11 +46,27 @@ class _HomeScreenState extends State<HomeScreen>
         Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
           CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
         );
+    _initializeModel();
+  }
+
+  Future<void> _initializeModel() async {
+    try {
+      await _classifier.initialize();
+      setState(() {
+        _isModelLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isModelLoading = false;
+        _errorMessage = 'Failed to load AI model: $e';
+      });
+    }
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _classifier.dispose();
     super.dispose();
   }
 
@@ -84,7 +105,16 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     try {
-      final result = await ApiService.predictTrafficSign(_selectedImage!);
+      PredictionResult result;
+
+      if (_settings.useTFLite) {
+        // Use on-device TFLite model
+        result = await _classifier.predict(_selectedImage!);
+      } else {
+        // Use API server
+        result = await ApiService.predictTrafficSign(_selectedImage!);
+      }
+
       setState(() {
         _predictionResult = result;
         _isLoading = false;
@@ -106,12 +136,42 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showSettingsDialog() {
-    showDialog(context: context, builder: (context) => const SettingsDialog());
+    showDialog(
+      context: context,
+      builder: (context) => SettingsDialog(
+        onSettingsChanged: () {
+          setState(() {});
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Show loading screen while model is initializing
+    if (_isModelLoading) {
+      return Scaffold(
+        body: GradientBackground(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: colorScheme.primary),
+                const SizedBox(height: 24),
+                Text(
+                  'Loading AI Model...',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -119,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'TS Vision',
+          'TS VISION',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: colorScheme.onSurface,
@@ -128,8 +188,8 @@ class _HomeScreenState extends State<HomeScreen>
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: _showSettingsDialog,
             icon: Icon(Icons.settings, color: colorScheme.onSurface),
+            onPressed: _showSettingsDialog,
             tooltip: 'Settings',
           ),
         ],

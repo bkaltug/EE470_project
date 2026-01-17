@@ -7,7 +7,7 @@
     
     <!-- Allow cleartext traffic for local development server -->
     <application
-        android:label="TS Vision"
+        android:label="TS VISION"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

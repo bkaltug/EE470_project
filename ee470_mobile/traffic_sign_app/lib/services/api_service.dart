@@ -1,44 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'app_settings.dart';
+import 'tflite_classifier.dart' show PredictionResult;
 
-class PredictionResult {
-  final int classId;
-  final String label;
-  final double confidence;
-
-  PredictionResult({
-    required this.classId,
-    required this.label,
-    required this.confidence,
-  });
-
-  factory PredictionResult.fromJson(Map<String, dynamic> json) {
-    return PredictionResult(
-      classId: json['class_id'] as int,
-      label: json['label'] as String,
-      confidence: double.parse(json['confidence'].toString()),
-    );
-  }
-}
+export 'tflite_classifier.dart' show PredictionResult;
 
 class ApiService {
-
-  static const String baseUrl = 'http://192.168.1.96:5000';
-
-  /// Updates the base URL for the API
-  static String _currentBaseUrl = baseUrl;
-
-  static void updateBaseUrl(String newUrl) {
-    _currentBaseUrl = newUrl;
-  }
-
-  static String get currentBaseUrl => _currentBaseUrl;
+  static final AppSettings _settings = AppSettings();
 
   /// Sends an image file to the prediction API and returns the result
   static Future<PredictionResult> predictTrafficSign(File imageFile) async {
     try {
-      final uri = Uri.parse('$_currentBaseUrl/predict');
+      final uri = Uri.parse('${_settings.apiBaseUrl}/predict');
 
       final request = http.MultipartRequest('POST', uri);
       request.files.add(
@@ -58,7 +32,11 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        return PredictionResult.fromJson(jsonData);
+        return PredictionResult(
+          classId: jsonData['class_id'] as int,
+          label: jsonData['label'] as String,
+          confidence: double.parse(jsonData['confidence'].toString()),
+        );
       } else {
         final errorData = json.decode(response.body);
         throw Exception(errorData['error'] ?? 'Failed to predict traffic sign');

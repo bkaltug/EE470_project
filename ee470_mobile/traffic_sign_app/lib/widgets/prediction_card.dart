@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import '../services/tflite_classifier.dart';
 
 class PredictionCard extends StatelessWidget {
   final PredictionResult result;
